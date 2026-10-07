@@ -69,6 +69,7 @@ input[type=date]{min-width:0;max-width:100%;display:block}
 .tbl tr.sub td{background:rgba(0,0,0,.035);font-weight:600}
 .tbl tr.sel td{background:rgba(0,0,0,.05)}
 .tbl td.ov{background:rgba(0,0,0,.06)}
+.tbl tr.klik{cursor:pointer}.tbl tr.klik:hover td{background:rgba(0,0,0,.035)}
 .badge{padding:3px 10px;border-radius:980px;font-size:12px;background:var(--soft);color:var(--mute);white-space:nowrap;align-self:flex-start}
 .badge.out{background:var(--soft);color:var(--mute)}.badge.in{background:#e9f7ee;color:#1b6e31}.badge.tab{background:#e8f1fd;color:var(--blue-text)}
 .split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
@@ -110,6 +111,25 @@ input[type=date]{min-width:0;max-width:100%;display:block}
 .sub-judul .dot{width:8px;height:8px;border-radius:50%;background:var(--blue)}
 .item.tab .bar{background:rgba(0,113,227,.14)}.item.tab .bar i{background:var(--blue)}
 .item.tab .top span:last-child{color:var(--blue-text)}
+.tr-list{display:flex;flex-direction:column}
+.tr-hari{font-size:12px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin:18px 0 2px}
+.tr-hari:first-child{margin-top:0}
+.tr-item{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;width:100%;text-align:left;border:0;background:none;padding:12px 0;border-bottom:1px solid var(--soft);font:inherit;color:inherit;cursor:pointer}
+.tr-item .kat{font-weight:500}
+.tr-item .ket{font-size:13px;color:var(--faint);margin-top:2px;overflow-wrap:anywhere}
+.tr-item .nil{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tr-item .nil::after{content:'\203A';color:var(--line);font-weight:400;margin-left:8px}
+.tr-item:active{background:var(--surface)}
+.tr-tabel{display:none}
+#sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.32);display:flex;align-items:flex-end;justify-content:center}
+#sheet .panel{background:#fff;width:100%;max-width:520px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px}
+#sheet .panel h2{font-size:22px}
+#sheet .field,#sheet .chip:not([aria-pressed=true]){background:var(--surface)}
+#sheet .aksi{display:flex;gap:10px}#sheet .aksi .secondary{flex:none;padding:14px 22px}
+.info{font-size:13px;line-height:1.5;border-radius:12px;padding:10px 12px;background:#e8f1fd;color:var(--blue-text)}
+@media (max-width:899px){
+  body.m-trx #view-data{display:flex}
+}
 .err{color:var(--red-text);font-size:14px;font-weight:600}
 nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(255,255,255,.92);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom))}
 nav button{flex:1;border:0;background:none;padding:4px 0;font-size:10px;color:var(--faint);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -143,6 +163,9 @@ main{padding-top:8px}
   body.pg-dataonly main{grid-template-columns:minmax(0,1fr)}
   body.pg-dataonly #view-data{display:flex}
   body.pg-dataonly #view-catat,body.pg-dataonly #view-sisa,body.pg-dataonly #cards{display:none!important}
+  .tr-tabel{display:block}.tr-list{display:none}
+  #sheet{align-items:center}
+  #sheet .panel{border-radius:20px;padding:26px}
 }
 </style>
 </head>
@@ -164,6 +187,7 @@ main{padding-top:8px}
     <nav id="nav" hidden>
       <button type="button" data-v="catat" aria-current="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Catat</button>
       <button type="button" data-v="sisa"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Sisa</button>
+      <button type="button" data-v="transaksi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>Transaksi</button>
     </nav>
     <div id="toast" role="status"></div>
   </div>
@@ -503,7 +527,9 @@ main{padding-top:8px}
     return h('div', { class: 'card tbl ' + (opsi.kelasTabel || '') }, h('table', {},
       h('thead', {}, h('tr', {}, kolom.map(function (c) { return h('th', { class: c.r ? 'r' : '' }, c.dot ? h('i', { class: 'dot', style: 'background:' + c.dot }) : null, c.t); }))),
       h('tbody', {}, baris.map(function (row) {
-        return h('tr', { class: opsi.kelas ? opsi.kelas(row) : '' }, kolom.map(function (c) {
+        var klik = opsi.klik ? function () { opsi.klik(row); } : null;
+        return h('tr', { class: (opsi.kelas ? opsi.kelas(row) : '') + (klik ? ' klik' : ''), tabindex: klik ? '0' : null, onclick: klik,
+          onkeydown: klik ? function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); klik(); } } : null }, kolom.map(function (c) {
           return h('td', { class: (c.r ? 'r ' : '') + (c.kelas ? c.kelas(row) : '') }, c.f(row));
         }));
       }))));
@@ -538,15 +564,113 @@ main{padding-top:8px}
     if (TR.loading && !TR.res) { root.append(h('div', { class: 'note', text: 'Memuat...' })); return; }
     var rows = ((TR.res && TR.res.baris) || []).filter(function (x) { return !TR.jenis || x.jenis === TR.jenis; });
     if (!rows.length) { root.append(h('div', { class: 'card note', text: 'Belum ada transaksi untuk pilihan ini.' })); return; }
-    root.append(tabel([
+    var tandaNilai = function (x) { return (x.jenis === 'Pemasukan' ? '+' : (x.jenis === 'Pengeluaran' ? '−' : '')) + rp(x.nilai); };
+    var kelasNilai = function (x) { return x.jenis === 'Pemasukan' ? 'pos' : (x.jenis === 'Tabungan & Investasi' ? 'biru' : ''); };
+
+    // layar sempit: daftar per tanggal, ketuk untuk mengubah
+    var list = h('div', { class: 'tr-list' }), hariLalu = '';
+    rows.forEach(function (x) {
+      if (x.tanggal !== hariLalu) { hariLalu = x.tanggal; list.append(h('div', { class: 'tr-hari', text: labelHari(x.tanggal) })); }
+      list.append(h('button', { type: 'button', class: 'tr-item', 'aria-label': 'Ubah transaksi ' + x.kategori + ' ' + rp(x.nilai), onclick: function () { bukaEdit(x); } },
+        h('div', { style: 'min-width:0' },
+          h('div', { class: 'kat' }, x.kategori, x.jenis !== 'Pengeluaran' ? [' ', badge(x.jenis)] : null),
+          h('div', { class: 'ket', text: [x.deskripsi, x.rekening].filter(Boolean).join(' · ') })),
+        h('div', { class: 'nil ' + kelasNilai(x), text: tandaNilai(x) })));
+    });
+    list.append(h('div', { class: 'note', style: 'margin-top:12px', text: rows.length + ' transaksi. Ketuk transaksi untuk merevisi. Hapus dilakukan langsung di sheet.' }));
+    root.append(list);
+
+    var tbl = tabel([
       { t: 'Tanggal', f: function (x) { return x.tanggal; } },
       { t: 'Jenis', f: function (x) { return badge(x.jenis); } },
       { t: 'Kategori', f: function (x) { return x.kategori; } },
       { t: 'Deskripsi', f: function (x) { return x.deskripsi; } },
-      { t: 'Nilai', r: true, kelas: function (x) { return x.jenis === 'Pemasukan' ? 'pos' : (x.jenis === 'Tabungan & Investasi' ? 'biru' : ''); },
-        f: function (x) { return (x.jenis === 'Pemasukan' ? '+' : (x.jenis === 'Pengeluaran' ? '\u2212' : '')) + rp(x.nilai); } },
+      { t: 'Nilai', r: true, kelas: kelasNilai, f: tandaNilai },
       { t: 'Rekening', f: function (x) { return x.rekening; } }
-    ], rows), h('div', { class: 'note', text: rows.length + ' transaksi. Untuk menambah, gunakan form di sebelah kanan. Koreksi atau hapus dilakukan langsung di sheet.' }));
+    ], rows, { klik: bukaEdit, kelas: function (x) { return TR.edit && TR.edit.x.baris === x.baris ? 'sel' : ''; } });
+    root.append(h('div', { class: 'tr-tabel' }, tbl,
+      h('div', { class: 'note', style: 'margin-top:12px', text: rows.length + ' transaksi. Klik baris untuk merevisi, form di kanan untuk menambah. Hapus dilakukan langsung di sheet.' })));
+  }
+
+  function labelHari(t) {
+    var p = t.split('-').map(Number), d = new Date(p[0], p[1] - 1, p[2]);
+    return d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  function bulanDari(t) {   // nomor bulan periode untuk tanggal yyyy-mm-dd, null bila di luar periode
+    var no = null;
+    data.bulan.forEach(function (b, i) { var akhir = data.bulan[i + 1] ? data.bulan[i + 1].mulai : null; if (t >= b.mulai && (!akhir || t < akhir)) no = b.no; });
+    return no;
+  }
+
+  // ---------- revisi transaksi ----------
+  function bukaEdit(x) {
+    TR.edit = { x: x, tanggal: x.tanggal, kategori: x.kategori, nominal: fmt(String(x.nilai)), deskripsi: x.deskripsi, rekening: x.rekening, sending: false, msg: '' };
+    renderEdit(); if (page === 'Transaksi') renderTransaksi();
+    var el = $('#edTgl'); if (el) el.focus();
+  }
+  function tutupEdit() {
+    TR.edit = null; var s = $('#sheet'); if (s) s.remove();
+    document.removeEventListener('keydown', escEdit);
+    if (page === 'Transaksi') renderTransaksi();
+  }
+  function escEdit(e) { if (e.key === 'Escape' && TR.edit && !TR.edit.sending) tutupEdit(); }
+  function jenisDari(kat) {
+    var j = null; JENIS.forEach(function (jn) { (data.kategoriSemua[jn] || []).forEach(function (k) { if (k.nama === kat) j = jn; }); (data.kategori[jn] || []).forEach(function (k) { if (k === kat) j = jn; }); });
+    return j;
+  }
+  function renderEdit() {
+    var e = TR.edit; if (!e) return;
+    var lama = $('#sheet'); if (lama) lama.remove();
+    var x = e.x, jenisBaru = jenisDari(e.kategori) || x.jenis;
+    // pilihan kategori: semua yang tidak disembunyikan, dikelompokkan per jenis (+ kategori asal walau disembunyikan)
+    var sel = h('select', { class: 'field', id: 'edKat', onchange: function (ev) { e.kategori = ev.target.value; renderEdit(); } },
+      JENIS.map(function (j) {
+        var opsi = (data.kategori[j] || []).slice();
+        if (j === x.jenis && opsi.indexOf(x.kategori) < 0) opsi.push(x.kategori);
+        return h('optgroup', { label: j }, opsi.map(function (k) { return h('option', { value: k, text: k, selected: k === e.kategori }); }));
+      }));
+    var rekNama = data.rekening.map(function (r) { return r.nama; });
+    if (rekNama.indexOf(x.rekening) < 0 && x.rekening) rekNama.push(x.rekening);
+    var dariSaham = /^(Beli|Jual) [A-Z]{2,6}$/.test(x.deskripsi);
+    var btn = h('button', { class: 'primary', type: 'button', text: e.sending ? 'Menyimpan...' : 'Simpan perubahan', disabled: e.sending, onclick: simpanEdit });
+    var panel = h('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'edJudul' },
+      h('div', {}, h('h2', { id: 'edJudul', text: 'Ubah transaksi' }),
+        h('div', { class: 'note', style: 'margin-top:4px', text: 'Tercatat: ' + x.tanggal + ' \u00b7 ' + x.kategori + ' \u00b7 ' + rp(x.nilai) })),
+      h('div', { class: 'row2' },
+        h('div', {}, h('label', { class: 'lbl', for: 'edTgl', text: 'Tanggal' }),
+          h('input', { class: 'field', id: 'edTgl', type: 'date', value: e.tanggal, oninput: function (ev) { e.tanggal = ev.target.value; } })),
+        h('div', {}, h('label', { class: 'lbl', for: 'edNom', text: 'Nominal (Rp)' }),
+          h('input', { class: 'field', id: 'edNom', type: 'text', inputmode: 'numeric', value: e.nominal, autocomplete: 'off',
+            oninput: function (ev) { e.nominal = fmt(ev.target.value); ev.target.value = e.nominal; } }))),
+      h('div', {}, h('label', { class: 'lbl', for: 'edKat', text: 'Kategori' }), sel),
+      jenisBaru !== x.jenis ? h('div', { class: 'info', text: 'Jenis ikut berubah: ' + x.jenis + ' \u2192 ' + jenisBaru + '.' }) : null,
+      h('div', {}, h('label', { class: 'lbl', for: 'edDes', text: 'Deskripsi' }),
+        h('input', { class: 'field', id: 'edDes', type: 'text', maxlength: '200', value: e.deskripsi, oninput: function (ev) { e.deskripsi = ev.target.value; } })),
+      h('div', {}, h('div', { class: 'lbl', text: 'Rekening' }), chipGroup(rekNama, e.rekening, function (r) { e.rekening = r; renderEdit(); }, 'rek', warnaRekening)),
+      dariSaham ? h('div', { class: 'note', text: 'Transaksi ini hasil sinkron dari sheet Saham. Perubahan di sini tidak mengubah baris di sheet Saham.' }) : null,
+      e.msg ? h('div', { class: 'err', role: 'alert', text: e.msg }) : null,
+      h('div', { class: 'aksi' }, h('button', { class: 'secondary', type: 'button', text: 'Batal', disabled: e.sending, onclick: tutupEdit }), btn));
+    var bg = h('div', { id: 'sheet', onclick: function (ev) { if (ev.target === bg && !e.sending) tutupEdit(); } }, panel);
+    document.body.append(bg);
+    document.removeEventListener('keydown', escEdit); document.addEventListener('keydown', escEdit);
+  }
+  function simpanEdit() {
+    var e = TR.edit, x = e.x, nilai = Number(digits(e.nominal));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.tanggal || '')) { e.msg = 'Tanggal belum diisi.'; renderEdit(); return; }
+    if (!(nilai > 0)) { e.msg = 'Nominal harus lebih dari 0.'; renderEdit(); return; }
+    if (!e.rekening) { e.msg = 'Pilih rekening.'; renderEdit(); return; }
+    if (e.tanggal === x.tanggal && e.kategori === x.kategori && nilai === x.nilai && e.deskripsi.trim() === x.deskripsi && e.rekening === x.rekening) { tutupEdit(); return; }
+    e.sending = true; e.msg = ''; renderEdit();
+    kirimData({ action: 'transaksiUbah', baris: x.baris,
+      lama: { tanggal: x.tanggal, kategori: x.kategori, deskripsi: x.deskripsi, nilai: x.nilai, rekening: x.rekening },
+      tanggal: e.tanggal, kategori: e.kategori, deskripsi: e.deskripsi, nilai: nilai, rekening: e.rekening },
+      function (r) {
+        var bBaru = bulanDari(r.tanggal || e.tanggal);
+        tutupEdit();
+        toast(bBaru !== bulanAktif() ? 'Tersimpan. Transaksi pindah ke ' + (bBaru ? data.bulan[bBaru - 1].label : 'luar periode anggaran') + '.' : 'Transaksi diperbarui.');
+        loadTransaksi(); loadSisa();
+      },
+      function (m) { e.sending = false; e.msg = m; renderEdit(); });
   }
 
   // ---------- Budget ----------
@@ -1022,8 +1146,15 @@ main{padding-top:8px}
 
   // ---------- navigasi & boot ----------
   function setView(v) {
+    var dari = view;
     view = v;
     $('#view-catat').hidden = v !== 'catat'; $('#view-sisa').hidden = v !== 'sisa';
+    // Transaksi di layar sempit memakai halaman Transaksi yang sama dengan sidebar (layar lebar),
+    // supaya bila layar diputar/diperlebar, halaman yang tampil tetap konsisten.
+    document.body.classList.toggle('m-trx', v === 'transaksi');
+    if (data && v === 'transaksi' && page !== 'Transaksi') setPage('Transaksi');
+    else if (data && v !== 'transaksi' && dari === 'transaksi') setPage('Ringkasan');
+    window.scrollTo(0, 0);
     [].forEach.call(document.querySelectorAll('nav button'), function (b) { b.setAttribute('aria-current', String(b.getAttribute('data-v') === v)); });
   }
   [].forEach.call(document.querySelectorAll('nav button'), function (b) { b.addEventListener('click', function () { setView(b.getAttribute('data-v')); }); });
@@ -1034,7 +1165,7 @@ main{padding-top:8px}
     apiGet({ action: 'init' }).then(function (r) {
       if (!r || !r.ok) { showSetup((r && r.error) || 'Gagal memuat data.'); return; }
       data = r; $('#setup').hidden = true; $('#main').hidden = false; $('#nav').hidden = false;
-      setView(view); renderCatat(); loadSisa(); setPage(page);
+      renderCatat(); loadSisa(); setPage(page); setView(view);
     }).catch(function () { showSetup('Tidak bisa terhubung. Periksa URL dan koneksi internet.'); });
   }
   renderSide();
