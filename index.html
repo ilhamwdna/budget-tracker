@@ -106,6 +106,10 @@ input[type=date]{min-width:0;max-width:100%;display:block}
 .bar.biru i{background:var(--blue)}
 .hati .bar i{background:var(--orange-fill)}.hati .top span:last-child{color:var(--orange-text)}
 .warn .bar i{background:var(--red-fill)}.warn .top span:last-child{color:var(--red-text)}
+.sub-judul{display:flex;align-items:center;gap:6px;margin-top:22px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--blue-text)}
+.sub-judul .dot{width:8px;height:8px;border-radius:50%;background:var(--blue)}
+.item.tab .bar{background:rgba(0,113,227,.14)}.item.tab .bar i{background:var(--blue)}
+.item.tab .top span:last-child{color:var(--blue-text)}
 .err{color:var(--red-text);font-size:14px;font-weight:600}
 nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(255,255,255,.92);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom))}
 nav button{flex:1;border:0;background:none;padding:4px 0;font-size:10px;color:var(--faint);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -422,7 +426,8 @@ main{padding-top:8px}
     box.append(
       kartu('Pemasukan', rp(r.arusKas.pemasukan), r.label, 'tint-g'),
       kartu('Pengeluaran', rp(r.total.realisasi), 'dari budget ' + rp(r.total.budget)),
-      kartu('Tabungan & Investasi', rp(r.arusKas.tabungan), r.label, 'tint-b')
+      kartu('Tabungan & Investasi', rp(r.arusKas.tabungan),
+        r.tabungan ? 'dari target ' + rp(r.tabungan.reduce(function (s, t) { return s + t.budget; }, 0)) : r.label, 'tint-b')
     );
   }
 
@@ -456,6 +461,24 @@ main{padding-top:8px}
         h('div', { class: 'bar' }, h('i', { style: 'width:' + pct + '%' }))));
     });
     root.append(daftar);
+
+    // Tabungan & Investasi per kategori: target bulan ini vs setoran. Selalu biru (melebihi target bukan
+    // pelanggaran). Tidak muncul bila Jembatan.gs versi lama belum mengirim 'tabungan'.
+    var tab = (r.tabungan || []).filter(function (k) { return k.budget > 0 || k.realisasi > 0; });
+    if (tab.length) {
+      var daftarTab = h('div', { class: 'daftar-sisa' });
+      tab.forEach(function (k) {
+        var pct = k.budget > 0 ? Math.min(100, Math.round(k.realisasi / k.budget * 100)) : 100;
+        var label = k.budget === 0 ? 'tanpa target'
+          : (k.realisasi > k.budget ? 'lebih ' + rp(k.realisasi - k.budget)
+          : (k.realisasi === k.budget ? '✓ tercapai' : rp(k.sisa) + ' lagi'));
+        daftarTab.append(h('div', { class: 'item tab' },
+          h('div', { class: 'top' }, h('span', { text: k.nama }), h('span', { text: label })),
+          h('div', { class: 'sub', text: 'disetor ' + rp(k.realisasi) + (k.budget > 0 ? ' dari target ' + rp(k.budget) : '') }),
+          h('div', { class: 'bar' }, h('i', { style: 'width:' + pct + '%' }))));
+      });
+      root.append(h('div', { class: 'sub-judul' }, h('span', { class: 'dot', 'aria-hidden': 'true' }), 'Tabungan & Investasi'), daftarTab);
+    }
     root.append(h('button', { class: 'secondary', type: 'button', text: 'Muat ulang', onclick: function () { loadSisa(); } }));
   }
 
