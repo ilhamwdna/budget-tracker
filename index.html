@@ -278,11 +278,12 @@ main{padding-top:8px}
 
   // ---------- state form catat ----------
   var f = { jenis: 'Pengeluaran', kategori: null, rekening: null, nominal: '', deskripsi: '', tanggal: today(),
-            sJenis: 'Beli', kode: null, lembar: '', harga: '', biaya: '', saham: false, sending: false };
+            sJenis: 'Beli', kode: null, lembar: '', harga: '', biaya: '', saham: false, emas: false, eJenis: 'Beli', gram: '', eHarga: '', eBiaya: '', sending: false };
   var JENIS = ['Pengeluaran', 'Pemasukan', 'Tabungan & Investasi'];
 
   function rekEfektif() { return f.rekening || (data.rekeningDefault && data.rekeningDefault[f.jenis]) || null; }
   function adalahSaham() { return f.jenis === 'Tabungan & Investasi' && f.saham; }
+  function adalahEmas() { return f.jenis === 'Tabungan & Investasi' && f.emas; }
 
   // teks putih di atas warna gelap, teks gelap di atas warna terang (agar tetap terbaca)
   function teksDiAtas(hex) {
@@ -323,13 +324,18 @@ main{padding-top:8px}
 
     root.append(
       h('h2', { text: 'Catat transaksi' }),
-      segmen(JENIS, f.jenis, function (j) { f.jenis = j; f.kategori = null; f.rekening = null; f.saham = false; renderCatat(); }),
-      f.jenis === 'Tabungan & Investasi'
-        ? h('div', { class: 'seg dua', role: 'group', 'aria-label': 'Jenis pencatatan tabungan' }, ['Setoran', 'Saham'].map(function (t) {
-            return h('button', { type: 'button', class: 'seg-btn', 'aria-pressed': String((t === 'Saham') === f.saham), text: t, onclick: function () { f.saham = t === 'Saham'; renderCatat(); } });
-          }))
-        : null,
-      adalahSaham() ? infoSaham : kategoriBlok
+      segmen(JENIS, f.jenis, function (j) { f.jenis = j; f.kategori = null; f.rekening = null; f.saham = false; f.emas = false; renderCatat(); }),
+   f.jenis === 'Tabungan & Investasi'
+     ? h('div', { class: 'seg', role: 'group', 'aria-label': 'Jenis pencatatan tabungan' }, ['Setoran', 'Saham', 'Emas'].map(function (t) {
+         var aktif = t === 'Saham' ? f.saham : (t === 'Emas' ? f.emas : (!f.saham && !f.emas));
+         return h('button', { type: 'button', class: 'seg-btn', 'aria-pressed': String(aktif), text: t, onclick: function () { f.saham = t === 'Saham'; f.emas = t === 'Emas'; renderCatat(); } });
+       }))
+     : null,
+   adalahSaham() ? infoSaham : (adalahEmas()
+     ? h('div', { class: 'note', id: 'infoKategoriEmas', text: emasKategoriAda()
+         ? 'Pembelian emas dicatat sebagai setoran ke kategori Emas, penjualan sebagai pemasukan Hasil Investasi. Gram dan harga disimpan di sheet Emas.'
+         : 'Kategori setoran "Emas" belum ada di Master (jenis Tabungan & Investasi).' })
+     : kategoriBlok)
     );
 
     var rek = rekEfektif();
@@ -344,7 +350,7 @@ main{padding-top:8px}
     var tgl = h('div', {}, h('label', { class: 'lbl', for: 'inTgl', text: 'Tanggal' }),
       h('input', { class: 'field', id: 'inTgl', type: 'date', value: f.tanggal, oninput: function (e) { f.tanggal = e.target.value; } }));
 
-    if (adalahSaham()) renderSaham(root, rekBlok, tgl); else renderUmum(root, rekBlok, tgl);
+    if (adalahSaham()) renderSaham(root, rekBlok, tgl); else if (adalahEmas()) renderEmasForm(root, rekBlok, tgl); else renderUmum(root, rekBlok, tgl);
   }
 
   function renderUmum(root, rekBlok, tgl) {
@@ -631,7 +637,7 @@ main{padding-top:8px}
       }));
     var rekNama = data.rekening.map(function (r) { return r.nama; });
     if (rekNama.indexOf(x.rekening) < 0 && x.rekening) rekNama.push(x.rekening);
-    var dariSaham = /^(Beli|Jual) [A-Z]{2,6}$/.test(x.deskripsi);
+    var dariSaham = /^(Beli|Jual) (Emas|[A-Z]{2,6})$/.test(x.deskripsi);
     var btn = h('button', { class: 'primary', type: 'button', text: e.sending ? 'Menyimpan...' : 'Simpan perubahan', disabled: e.sending, onclick: simpanEdit });
     var panel = h('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'edJudul' },
       h('div', {}, h('h2', { id: 'edJudul', text: 'Ubah transaksi' }),
@@ -647,7 +653,7 @@ main{padding-top:8px}
       h('div', {}, h('label', { class: 'lbl', for: 'edDes', text: 'Deskripsi' }),
         h('input', { class: 'field', id: 'edDes', type: 'text', maxlength: '200', value: e.deskripsi, oninput: function (ev) { e.deskripsi = ev.target.value; } })),
       h('div', {}, h('div', { class: 'lbl', text: 'Rekening' }), chipGroup(rekNama, e.rekening, function (r) { e.rekening = r; renderEdit(); }, 'rek', warnaRekening)),
-      dariSaham ? h('div', { class: 'note', text: 'Transaksi ini hasil sinkron dari sheet Saham. Perubahan di sini tidak mengubah baris di sheet Saham.' }) : null,
+      dariSaham ? h('div', { class: 'note', text: 'Transaksi ini hasil sinkron dari sheet Saham/Emas. Perubahan di sini tidak mengubah baris di sheet Saham/Emas.' }) : null,
       e.msg ? h('div', { class: 'err', role: 'alert', text: e.msg }) : null,
       h('div', { class: 'aksi' }, h('button', { class: 'secondary', type: 'button', text: 'Batal', disabled: e.sending, onclick: tutupEdit }), btn));
     var bg = h('div', { id: 'sheet', onclick: function (ev) { if (ev.target === bg && !e.sending) tutupEdit(); } }, panel);
@@ -1024,6 +1030,131 @@ main{padding-top:8px}
     ], SH.res.baris), h('div', { class: 'note', text: 'Harga dari GOOGLEFINANCE, bisa tertunda dari harga bursa. Untuk mencatat beli/jual, gunakan form di sebelah kanan.' }));
   }
 
+// ---------- Emas ----------
+  var EM = { res: null, loading: false, err: '' };
+  var EH = { tanggal: today(), harga: '', sending: false, msg: '', ok: true };
+  function emasKategoriAda() { return (data.kategoriSemua['Tabungan & Investasi'] || []).some(function (k) { return k.nama === 'Emas'; }); }
+  // gram boleh desimal: terima koma atau titik sebagai pemisah, maksimal 4 angka di belakangnya
+  function ketikGram(s) {
+    var t = String(s || '').replace(/[^0-9.,]/g, ''), i = t.search(/[.,]/);
+    return i < 0 ? t : t.slice(0, i + 1) + t.slice(i + 1).replace(/[.,]/g, '').slice(0, 4);
+  }
+  function parseGram(s) { var n = Number(String(s || '').replace(',', '.')); return isFinite(n) ? n : 0; }
+  function teksGram(x) { return (typeof x === 'number' ? x : 0).toLocaleString('id-ID', { maximumFractionDigits: 4 }) + ' gr'; }
+
+  function renderEmasForm(root, rekBlok, tgl) {
+    var total = h('div', { class: 'total', id: 'emasTotal' });
+    function hitung() {
+      var g = parseGram(f.gram), hg = Number(digits(f.eHarga)), b = Number(digits(f.eBiaya));
+      var n = f.eJenis === 'Jual' ? g * hg - b : g * hg + b;
+      total.textContent = ''; total.append('Nilai: ', h('strong', { text: rp(n || 0) }),
+        f.eJenis === 'Saldo awal' ? ' \u2014 hanya dicatat di sheet Emas (tidak masuk Transaksi)' : ' \u2014 otomatis tercatat di Transaksi & sheet Emas');
+    }
+    function rupiah(id, label, key, ph) {
+      return h('div', {}, h('label', { class: 'lbl', for: id, text: label }),
+        h('input', { class: 'field', id: id, type: 'text', inputmode: 'numeric', placeholder: ph || '', value: f[key], autocomplete: 'off',
+          oninput: function (e) { f[key] = fmt(e.target.value); e.target.value = f[key]; hitung(); } }));
+    }
+    var gramIn = h('div', {}, h('label', { class: 'lbl', for: 'inGram', text: 'Gram' }),
+      h('input', { class: 'field', id: 'inGram', type: 'text', inputmode: 'decimal', placeholder: '0', value: f.gram, autocomplete: 'off',
+        oninput: function (e) { f.gram = ketikGram(e.target.value); e.target.value = f.gram; hitung(); } }));
+    var btn = h('button', { class: 'primary', type: 'button', text: 'Simpan transaksi emas', disabled: f.sending, onclick: submitEmas });
+    root.append(
+      h('div', {}, h('div', { class: 'lbl', text: 'Jenis transaksi emas' }), chipGroup(['Beli', 'Jual', 'Saldo awal'], f.eJenis, function (j) { f.eJenis = j; renderCatat(); })),
+      h('div', { class: 'row2' }, gramIn, rupiah('inEHar', 'Harga/gram', 'eHarga')),
+      rupiah('inEBia', 'Biaya (opsional)', 'eBiaya', '0'),
+      h('div', { class: 'row2 row-tr' }, tgl, f.eJenis === 'Saldo awal' ? null : rekBlok),
+      f.eJenis === 'Saldo awal' ? h('div', { class: 'note', text: 'Saldo awal = emas yang sudah kamu miliki. Isi harga dengan harga beli rata-ratamu. Catat berurutan dari yang paling lama.' }) : null,
+      total, h('div', { class: 'err', id: 'catatMsg' }), btn
+    );
+    hitung();
+  }
+
+  function submitEmas() {
+    if (f.sending) return;
+    var g = parseGram(f.gram), hg = Number(digits(f.eHarga)), b = Number(digits(f.eBiaya)), rek = rekEfektif();
+    var perluRek = f.eJenis !== 'Saldo awal';
+    if (f.eJenis === 'Beli' && !emasKategoriAda()) return setMsg('Kategori setoran "Emas" belum ada di Master.');
+    if (!(g > 0)) return setMsg('Isi jumlah gram.');
+    if (!(hg > 0)) return setMsg('Isi harga per gram.');
+    if (perluRek && !rek) return setMsg('Pilih rekening.');
+    if (!f.tanggal) return setMsg('Isi tanggal.');
+    kirim({ action: 'catatEmas', tanggal: f.tanggal, jenis: f.eJenis, gram: g, harga: hg, biaya: b, rekening: perluRek ? rek : '' }, function (r) {
+      f.gram = ''; f.eHarga = ''; f.eBiaya = ''; renderCatat();
+      toast(r.asetPesan ? 'Tersimpan. ' + r.asetPesan : 'Tersimpan'); loadSisa();
+      if (page === 'Emas') loadEmas();
+    });
+  }
+
+  function loadEmas() { return muat(EM, { action: 'emas' }, renderEmas); }
+  function simpanHargaEmas() {
+    if (EH.sending) return;
+    var hg = Number(digits(EH.harga));
+    if (!EH.tanggal) { EH.msg = 'Isi tanggal.'; EH.ok = false; renderEmas(); return; }
+    if (!(hg > 0)) { EH.msg = 'Isi harga per gram.'; EH.ok = false; renderEmas(); return; }
+    EH.sending = true; EH.msg = ''; renderEmas();
+    kirimData({ action: 'hargaEmas', tanggal: EH.tanggal, harga: hg },
+      function (r) { EH.sending = false; EH.msg = r.pesan; EH.ok = true; EH.harga = ''; toast('Harga emas tersimpan'); loadEmas(); },
+      function (m) { EH.sending = false; EH.msg = m; EH.ok = false; renderEmas(); toast(m, true); });
+  }
+  function renderEmas() {
+    var root = $('#view-data'); root.textContent = '';
+    root.append(barAtas('Emas'));
+    if (EM.err) root.append(h('div', { class: 'err', text: EM.err }));
+    if (EM.loading && !EM.res) { root.append(h('div', { class: 'note', text: 'Memuat...' })); return; }
+    if (!EM.res) return;
+    var r = EM.res, s = r.ringkasan;
+    function kartu(j, v, ket, cls) {
+      return h('div', { class: 'card kartu ' + (cls === 'pos' ? 'tint-g' : (cls === 'neg' ? 'tint-r' : '')) },
+        h('div', { class: 'note', text: j }), h('div', { class: 'v ' + (cls || ''), text: v }), ket ? h('div', { class: 'note', text: ket }) : null);
+    }
+    var urTeks = typeof s.ur === 'number' ? (s.ur >= 0 ? '+' : '') + rp(s.ur) + (typeof s.urPct === 'number' ? ' (' + pct(s.urPct) + ')' : '') : '\u2013';
+    root.append(h('div', { style: 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px' },
+      kartu('Emas dimiliki', teksGram(s.gram), 'Modal ' + rp(s.modal) + (s.gram > 0 ? ' \u00b7 rata-rata ' + rp(s.rata) + '/gr' : '')),
+      kartu('Nilai (harga jual)', typeof s.nilaiPasar === 'number' ? rp(s.nilaiPasar) : '\u2013',
+        s.hargaTerakhir ? rp(s.hargaTerakhir) + '/gr per ' + s.hargaTanggal : 'Belum ada harga jual'),
+      kartu('Untung/rugi belum terealisasi', urTeks, s.realisasi ? 'Terealisasi ' + (s.realisasi >= 0 ? '+' : '') + rp(s.realisasi) : '',
+        typeof s.ur === 'number' ? (s.ur >= 0 ? 'pos' : 'neg') : '')));
+
+    var hf = h('div', { class: 'card stack', style: 'gap:10px' },
+      h('div', { style: 'font-weight:700;font-size:15px', text: 'Harga jual (buyback) bulanan' }),
+      h('div', { class: 'note', text: 'Isi harga buyback per gram pada tanggal snapshot. Nilainya (total gram \u00d7 harga) otomatis ditulis ke sheet Aset sebagai "Emas'
+        + (r.tujuanEmas ? '", tujuan ' + r.tujuanEmas : '"') + '. Input ulang di bulan yang sama memperbarui, bukan menggandakan.' }),
+      h('div', { class: 'row2' },
+        h('div', {}, h('label', { class: 'lbl', for: 'ehTgl', text: 'Tanggal' }),
+          h('input', { class: 'field', id: 'ehTgl', type: 'date', value: EH.tanggal, oninput: function (e) { EH.tanggal = e.target.value; } })),
+        h('div', {}, h('label', { class: 'lbl', for: 'ehHar', text: 'Harga/gram' }),
+          h('input', { class: 'field', id: 'ehHar', type: 'text', inputmode: 'numeric', placeholder: '0', value: EH.harga, autocomplete: 'off',
+            oninput: function (e) { EH.harga = fmt(e.target.value); e.target.value = EH.harga; } }))),
+      h('button', { class: 'primary', type: 'button', style: 'padding:11px;font-size:14px', disabled: EH.sending, text: EH.sending ? 'Memproses...' : 'Simpan harga & perbarui Aset', onclick: simpanHargaEmas }),
+      panelPesan(EH.msg, EH.ok));
+    var hargaRows = (r.hargaBulanan || []).slice().reverse();
+    root.append(h('div', { class: 'split' },
+      hargaRows.length ? tabel([
+        { t: 'Tanggal', f: function (x) { return x.tanggal; } },
+        { t: 'Harga/gram', r: true, f: function (x) { return rp(x.harga); } },
+        { t: 'Gram', r: true, f: function (x) { return teksGram(x.gram); } },
+        { t: 'Nilai ke Aset', r: true, f: function (x) { return rp(x.nilai); } }], hargaRows)
+        : h('div', { class: 'card note', text: 'Belum ada harga bulanan. Isi di form sebelah kanan.' }),
+      hf));
+
+    var rows = (r.baris || []).slice().reverse();
+    if (rows.length) {
+      root.append(tabel([
+        { t: 'Tanggal', f: function (x) { return x.tanggal; } },
+        { t: 'Jenis', f: function (x) { return x.jenis; } },
+        { t: 'Gram', r: true, f: function (x) { return teksGram(x.gram); } },
+        { t: 'Harga/gram', r: true, f: function (x) { return rp(x.harga); } },
+        { t: 'Biaya', r: true, f: function (x) { return x.biaya ? rp(x.biaya) : '\u2013'; } },
+        { t: 'Gram berjalan', r: true, f: function (x) { return teksGram(x.gramBerjalan); } },
+        { t: 'Modal', r: true, f: function (x) { return rp(x.modal); } },
+        { t: 'Rata-rata', r: true, f: function (x) { return x.rata ? rp(x.rata) : '\u2013'; } },
+        { t: 'Terealisasi', r: true, kelas: function (x) { return x.realisasi ? (x.realisasi >= 0 ? 'pos' : 'neg') : ''; },
+          f: function (x) { return x.realisasi ? (x.realisasi >= 0 ? '+' : '') + rp(x.realisasi) : '\u2013'; } }], rows),
+        h('div', { class: 'note', text: 'Beli dan Jual otomatis tercatat di Transaksi (setoran kategori Emas / pemasukan Hasil Investasi). Saldo awal hanya ada di sheet Emas. Untuk koreksi, ubah langsung di sheet.' }));
+    }
+  }
+  
   // ---------- Setelan ----------
   var ST = { tab: 'Rekening', nama: '', ket: '', msg: '', ok: true, sending: false };
   var SLOT = { rekening: 9, tujuan: 7, emiten: 8 };
@@ -1116,9 +1247,9 @@ main{padding-top:8px}
   }
 
   // ---------- sidebar & halaman (layar lebar) ----------
-  var MENU = ['Ringkasan', 'Transaksi', 'Budget', 'Aset', 'Kekayaan', 'Saham', 'Setelan'];
-  var KELAS = { Ringkasan: 'pg-ringkasan', Transaksi: 'pg-datacatat', Saham: 'pg-datacatat', Budget: 'pg-dataonly', Aset: 'pg-dataonly', Kekayaan: 'pg-dataonly', Setelan: 'pg-dataonly' };
-  var MUAT = { Transaksi: loadTransaksi, Budget: loadBudget, Aset: loadAset, Kekayaan: loadKekayaan, Saham: loadSaham, Setelan: function () { loadTujuan(); renderSetelan(); } };
+  var MENU = ['Ringkasan', 'Transaksi', 'Budget', 'Aset', 'Kekayaan', 'Saham', 'Emas', 'Setelan'];
+  var KELAS = { Ringkasan: 'pg-ringkasan', Transaksi: 'pg-datacatat', Saham: 'pg-datacatat', Emas: 'pg-datacatat', Budget: 'pg-dataonly', Aset: 'pg-dataonly', Kekayaan: 'pg-dataonly', Setelan: 'pg-dataonly' };
+  var MUAT = { Transaksi: loadTransaksi, Budget: loadBudget, Aset: loadAset, Kekayaan: loadKekayaan, Saham: loadSaham, Emas: loadEmas, Setelan: function () { loadTujuan(); renderSetelan(); } };
   var page = 'Ringkasan';
   function renderSide() {
     var side = $('#side'); side.textContent = '';
@@ -1135,7 +1266,8 @@ main{padding-top:8px}
     $('#judul').textContent = m === 'Ringkasan' ? 'Ringkasan Bulanan' : m;
     renderSide();
     if (!data) return;
-    if (m === 'Saham') { f.jenis = 'Tabungan & Investasi'; f.kategori = null; f.saham = true; f.rekening = null; renderCatat(); }
+    if (m === 'Saham') { f.jenis = 'Tabungan & Investasi'; f.kategori = null; f.saham = true; f.emas = false; f.rekening = null; renderCatat(); }
+    if (m === 'Emas') { f.jenis = 'Tabungan & Investasi'; f.kategori = null; f.saham = false; f.emas = true; f.rekening = null; renderCatat(); }
     if (MUAT[m]) MUAT[m]();
   }
   function setBulan(n) {
